@@ -1,23 +1,31 @@
-import { Component } from 'preact';
+import { h, Component } from 'preact';
 import { Router, route } from 'preact-router';
 import queryString from 'query-string';
 
 import history from '../../history';
-import Chat from '../../routes/Chat';
-import LeaveMessage from '../../routes/LeaveMessage';
-import ChatFinished from '../../routes/ChatFinished';
-import SwitchDepartment from '../../routes/SwitchDepartment';
-import GDPRAgreement from '../../routes/GDPRAgreement';
-import Register from '../../routes/Register';
-import { Provider as StoreProvider, Consumer as StoreConsumer } from '../../store';
-import { visibility } from '../helpers';
-import { setWidgetLanguage } from '../../lib/locale';
-import CustomFields from '../../lib/customFields';
-import Triggers from '../../lib/triggers';
-import Hooks from '../../lib/hooks';
-import { parentCall } from '../../lib/parentCall';
-import userPresence from '../../lib/userPresence';
+import I18n from '../../i18n';
 import Connection from '../../lib/connection';
+import CustomFields from '../../lib/customFields';
+import Hooks from '../../lib/hooks';
+import { setWidgetLanguage } from '../../lib/locale';
+import { parentCall } from '../../lib/parentCall';
+import Triggers from '../../lib/triggers';
+import userPresence from '../../lib/userPresence';
+import Chat from '../../routes/Chat';
+import ChatFinished from '../../routes/ChatFinished';
+import GDPRAgreement from '../../routes/GDPRAgreement';
+import LeaveMessage from '../../routes/LeaveMessage';
+import Register from '../../routes/Register';
+import SwitchDepartment from '../../routes/SwitchDepartment';
+import { Provider as StoreProvider, Consumer as StoreConsumer, store } from '../../store';
+import { visibility, isActiveSession } from '../helpers';
+
+function isRTL(s) {
+	const rtlChars = '\u0591-\u07FF\u200F\u202B\u202E\uFB1D-\uFDFD\uFE70-\uFEFC';
+	const rtlDirCheck = new RegExp(`^[^${ rtlChars }]*?[${ rtlChars }]`);
+
+	return rtlDirCheck.test(s);
+}
 
 export class App extends Component {
 	state = {
@@ -96,7 +104,17 @@ export class App extends Component {
 	handleRestore = () => {
 		parentCall('restoreWindow');
 		const { dispatch } = this.props;
-		dispatch({ minimized: false, undocked: false });
+		const { undocked } = this.props;
+		const dispatchRestore = () => dispatch({ minimized: false, undocked: false });
+		const dispatchEvent = () => {
+			dispatchRestore();
+			store.off('storageSynced', dispatchEvent);
+		}
+		if (undocked) {
+			store.on('storageSynced', dispatchEvent);
+		} else {
+			dispatchRestore();
+		}
 	}
 
 	handleOpenWindow = () => {
@@ -118,6 +136,8 @@ export class App extends Component {
 	handleLanguageChange = () => {
 		this.forceUpdate();
 	}
+
+	dismissNotification = () => !isActiveSession();
 
 	initWidget() {
 		setWidgetLanguage();
@@ -162,6 +182,10 @@ export class App extends Component {
 		this.finalize();
 	}
 
+	componentDidUpdate() {
+		document.dir = isRTL(I18n.t('Yes')) ? 'rtl' : 'ltr';
+	}
+
 	render = ({
 		sound,
 		undocked,
@@ -190,24 +214,25 @@ export class App extends Component {
 			onRestore: this.handleRestore,
 			onOpenWindow: this.handleOpenWindow,
 			onDismissAlert: this.handleDismissAlert,
+			dismissNotification: this.dismissNotification,
 		};
 
 		return (
 			<Router history={history} onChange={this.handleRoute}>
-				<Chat default path="/" {...screenProps} />
-				<Register path="/register" {...screenProps} />
-				<LeaveMessage path="/leave-message" {...screenProps} />
-				<GDPRAgreement path="/gdpr" {...screenProps} />
-				<ChatFinished path="/chat-finished" {...screenProps} />
-				<SwitchDepartment path="/switch-department" {...screenProps} />
+				<Chat default path='/' {...screenProps} />
+				<ChatFinished path='/chat-finished' {...screenProps} />
+				<GDPRAgreement path='/gdpr' {...screenProps} />
+				<LeaveMessage path='/leave-message' {...screenProps} />
+				<Register path='/register' {...screenProps} />
+				<SwitchDepartment path='/switch-department' {...screenProps} />
 			</Router>
 		);
 	}
 }
 
 const AppConnector = () => (
-	<StoreProvider>
-		<div id="app">
+	<div id='app'>
+		<StoreProvider>
 			<StoreConsumer>
 				{({
 					config,
@@ -239,8 +264,8 @@ const AppConnector = () => (
 					/>
 				)}
 			</StoreConsumer>
-		</div>
-	</StoreProvider>
+		</StoreProvider>
+	</div>
 );
 
 export default AppConnector;
